@@ -1,0 +1,1054 @@
+```html
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rutaca Airlines - Sistema de Seguimiento OACI & Ruta IATA para INAC</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- SheetJS for Excel Generation -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        rutaca: {
+                            gold: '#d97706',
+                            darkGold: '#b45309',
+                            navy: '#0f172a',
+                            lightNavy: '#1e293b',
+                            accent: '#0284c7'
+                        }
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0b1329;
+            color: #f8fafc;
+        }
+
+        .excel-input {
+            background-color: rgba(30, 41, 59, 0.85);
+            border: 1px solid #334155;
+            color: #ffffff;
+            padding: 3px 5px;
+            font-size: 11px;
+            border-radius: 4px;
+            width: 100%;
+            transition: all 0.15s ease;
+        }
+
+        .excel-input:focus {
+            background-color: #1e293b;
+            border-color: #38bdf8;
+            outline: none;
+            box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.25);
+        }
+
+        .excel-select {
+            background-color: rgba(30, 41, 59, 0.85);
+            border: 1px solid #334155;
+            color: #ffffff;
+            padding: 3px 4px;
+            font-size: 11px;
+            border-radius: 4px;
+            width: 100%;
+        }
+
+        .excel-table th {
+            background-color: #1e293b;
+            color: #cbd5e1;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            padding: 6px 4px;
+            border: 1px solid #334155;
+            white-space: nowrap;
+            text-align: center;
+        }
+
+        .excel-table td {
+            border: 1px solid #334155;
+            padding: 3px;
+            font-size: 11px;
+            vertical-align: middle;
+        }
+
+        .mirror-table th {
+            background-color: #0f172a;
+            color: #94a3b8;
+            border: 1px solid #1e293b;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 6px 8px;
+            text-transform: uppercase;
+        }
+
+        .mirror-table td {
+            border: 1px solid #1e293b;
+            padding: 6px 8px;
+            font-size: 11px;
+            color: #e2e8f0;
+            background-color: #1a2436;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0f172a;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #334155;
+            border-radius: 4px;
+        }
+
+        /* Print formatting */
+        @media print {
+            .no-print {
+                display: none !important;
+            }
+            body {
+                background: white !important;
+                color: black !important;
+            }
+            .print-header {
+                display: block !important;
+            }
+            .excel-table th, .mirror-table th {
+                background-color: #e2e8f0 !important;
+                color: black !important;
+                border: 1px solid #94a3b8 !important;
+            }
+            .excel-table td, .mirror-table td {
+                background-color: white !important;
+                color: black !important;
+                border: 1px solid #cbd5e1 !important;
+            }
+            .excel-input, .excel-select {
+                background: transparent !important;
+                color: black !important;
+                border: none !important;
+                padding: 0 !important;
+                font-weight: bold;
+            }
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col antialiased">
+
+    <!-- Datalist para Autocompletado de Códigos OACI de Aeropuertos -->
+    <datalist id="oaciAirports">
+        <option value="SVMI">SVMI - Maiquetía / Caracas (CCS)</option>
+        <option value="SVPR">SVPR - Puerto Ordaz (PZO)</option>
+        <option value="SVPM">SVPM - Porlamar / Margarita (PMV)</option>
+        <option value="SVVA">SVVA - Valencia (VLN)</option>
+        <option value="SVBC">SVBC - Barcelona (BLA)</option>
+        <option value="SVCR">SVCR - Coro (CZE)</option>
+        <option value="SVMC">SVMC - Maracaibo (MAR)</option>
+        <option value="SVMG">SVMG - Maturín (MUN)</option>
+        <option value="SVSO">SVSO - Santo Domingo Táchira (STD)</option>
+        <option value="SVMD">SVMD - Mérida (MRD)</option>
+        <option value="MDPP">MDPP - Puerto Plata, RD (POP)</option>
+        <option value="MDSD">MDSD - Santo Domingo, RD (SDQ)</option>
+        <option value="TNCB">TNCB - Curaçao (CUR)</option>
+        <option value="TNCA">TNCA - Aruba (AUA)</option>
+        <option value="MPTO">MPTO - Panamá Tocumen (PTY)</option>
+    </datalist>
+
+    <!-- Official Printable Header -->
+    <div class="hidden print-header p-4 border-b-2 border-black mb-4">
+        <div class="flex justify-between items-center text-center">
+            <div class="text-left text-xs">
+                <p class="font-bold">REPÚBLICA BOLIVARIANA DE VENEZUELA</p>
+                <p>MINISTERIO DEL PODER POPULAR PARA EL TRANSPORTE</p>
+                <p>INSTITUTO NACIONAL DE AERONÁUTICA CIVIL (INAC)</p>
+            </div>
+            <div>
+                <h1 class="text-base font-bold underline">RUTACA AIRLINES - REPORTE DIARIO DE OPERACIONES</h1>
+                <p class="text-xs" id="printReportDate">FECHA DE REPORTE: --/--/----</p>
+            </div>
+            <div class="text-right text-xs font-bold">
+                <p>CONTROL OPERATIVO</p>
+                <p>DESPACHO DE VUELO</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Header Navigation Bar -->
+    <header class="bg-slate-900 border-b border-slate-800 sticky top-0 z-50 shadow-xl no-print">
+        <div class="max-w-[1700px] mx-auto px-4 py-3 flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            
+            <!-- Logo & Brand -->
+            <div class="flex items-center space-x-3">
+                <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-600 to-amber-400 flex items-center justify-center text-slate-950 font-black shadow-lg shadow-amber-500/20">
+                    <i class="fa-solid fa-plane text-xl"></i>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 class="text-lg font-black tracking-tight text-white">RUTACA AIRLINES</h1>
+                        <span class="text-[10px] font-bold px-2 py-0.5 rounded bg-sky-500/20 text-sky-400 border border-sky-500/30">OACI + RUTA IATA</span>
+                    </div>
+                    <p class="text-xs text-slate-400">Origen/Destino OACI & Conversión de Ruta IATA + Jet-A1 INAC</p>
+                </div>
+            </div>
+
+            <!-- Date Selector & File Operations -->
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="flex items-center bg-slate-800 border border-slate-700 rounded-lg px-3 py-1.5 space-x-2">
+                    <i class="fa-regular fa-calendar-days text-amber-400 text-sm"></i>
+                    <span class="text-xs text-slate-400 font-semibold">FECHA:</span>
+                    <input type="date" id="globalDate" onchange="handleDateChange()" class="bg-transparent text-white text-xs font-bold focus:outline-none cursor-pointer">
+                </div>
+
+                <button onclick="addNewFlightRow()" class="bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-md shadow-sky-600/20">
+                    <i class="fa-solid fa-plus-circle"></i>
+                    <span>Agregar Vuelo</span>
+                </button>
+
+                <button onclick="saveCurrentDayToStorage()" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-md shadow-indigo-600/20">
+                    <i class="fa-solid fa-floppy-disk"></i>
+                    <span>Guardar Día</span>
+                </button>
+
+                <button onclick="exportToExcelWorkbook()" class="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+                    <i class="fa-solid fa-file-excel"></i>
+                    <span>Exportar Excel (.xlsx)</span>
+                </button>
+
+                <button onclick="triggerPrintProcess()" class="bg-slate-700 hover:bg-slate-600 text-white text-xs font-bold px-3 py-2 rounded-lg transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-print"></i>
+                    <span>Imprimir</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-grow max-w-[1700px] w-full mx-auto px-4 py-5 space-y-5">
+
+        <!-- Top KPIs Summary Bar -->
+        <section class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-3 no-print">
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-slate-400 font-bold uppercase">Vuelos Operados</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiOperated" class="text-2xl font-black text-white">0</span>
+                    <i class="fa-solid fa-plane-flight text-slate-500 text-lg"></i>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-emerald-400 font-bold uppercase">A Tiempo (On-Time)</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiOnTime" class="text-2xl font-black text-emerald-400">0</span>
+                    <i class="fa-solid fa-clock text-emerald-500/50 text-lg"></i>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-amber-400 font-bold uppercase">Vuelos Demorados</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiDelayed" class="text-2xl font-black text-amber-400">0</span>
+                    <i class="fa-solid fa-triangle-exclamation text-amber-500/50 text-lg"></i>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-rose-400 font-bold uppercase">Imputables Rutaca</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiImputable" class="text-2xl font-black text-rose-400">0</span>
+                    <i class="fa-solid fa-user-xmark text-rose-500/50 text-lg"></i>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-sky-400 font-bold uppercase">No Imputables</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiNonImputable" class="text-2xl font-black text-sky-400">0</span>
+                    <i class="fa-solid fa-cloud-bolt text-sky-500/50 text-lg"></i>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-amber-300 font-bold uppercase">Puntualidad Total</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiPunctualityTotal" class="text-2xl font-black text-amber-300">100%</span>
+                    <i class="fa-solid fa-percent text-amber-500/50 text-lg"></i>
+                </div>
+            </div>
+
+            <div class="bg-slate-800/80 border border-slate-700/80 rounded-xl p-3 shadow-md">
+                <p class="text-[10px] text-emerald-300 font-bold uppercase">Puntualidad Real</p>
+                <div class="flex items-center justify-between mt-1">
+                    <span id="kpiPunctualityReal" class="text-2xl font-black text-emerald-300">100%</span>
+                    <i class="fa-solid fa-chart-line text-emerald-500/50 text-lg"></i>
+                </div>
+            </div>
+        </section>
+
+        <!-- Navigation Tabs Bar -->
+        <div class="flex flex-wrap border-b border-slate-800 gap-2 no-print">
+            <button onclick="switchActiveTab('tab1')" id="tabBtn1" class="px-5 py-2.5 font-bold text-xs rounded-t-lg transition-all border-t border-x flex items-center gap-2 bg-amber-600 text-slate-950 border-amber-500">
+                <i class="fa-solid fa-table"></i>
+                1. SEGUIMIENTO DE VUELO (Principal OACI)
+            </button>
+            <button onclick="switchActiveTab('tab2')" id="tabBtn2" class="px-5 py-2.5 font-bold text-xs rounded-t-lg transition-all border-t border-x flex items-center gap-2 bg-slate-800/60 text-slate-400 border-slate-800 hover:text-white">
+                <i class="fa-solid fa-eye"></i>
+                2. EST INAC (Espejo OACI)
+            </button>
+            <button onclick="switchActiveTab('tab3')" id="tabBtn3" class="px-5 py-2.5 font-bold text-xs rounded-t-lg transition-all border-t border-x flex items-center gap-2 bg-slate-800/60 text-slate-400 border-slate-800 hover:text-white">
+                <i class="fa-solid fa-calculator"></i>
+                3. DATOS REPORTE (Ruta IATA & Fuel Jet-A1)
+            </button>
+        </div>
+
+        <!-- TAB 1: SEGUIMIENTO DE VUELO (MASTER INPUT TABLE - OACI) -->
+        <div id="tab1" class="space-y-3">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl overflow-x-auto">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3 no-print">
+                    <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+                        <i class="fa-solid fa-pen-to-square"></i>
+                        Registro Operativo Principal de Vuelos (Formato OACI)
+                    </h2>
+                    <span class="text-xs text-slate-400 bg-slate-800/80 px-3 py-1 rounded border border-slate-700">
+                        <i class="fa-solid fa-circle-check text-emerald-400 mr-1"></i> Códigos de Origen/Destino OACI (4 letras). Ruta IATA en Tab 3.
+                    </span>
+                </div>
+
+                <table class="w-full excel-table border-collapse min-w-[2100px]">
+                    <thead>
+                        <tr>
+                            <th class="w-8">N°</th>
+                            <th class="w-28">TERMINAL</th>
+                            <th class="w-24">N° VUELO</th>
+                            <th class="w-24">MATRÍCULA</th>
+                            <th class="w-24">MODELO</th>
+                            <th class="w-20">ORIGEN (OACI)</th>
+                            <th class="w-20">DESTINO (OACI)</th>
+                            <th class="w-16">ETD</th>
+                            <th class="w-16">PUERTA SAL</th>
+                            <th class="w-16">TAXEO SAL</th>
+                            <th class="w-16">OFF (DESP)</th>
+                            <th class="w-16">ETA</th>
+                            <th class="w-16">ON (ATERR)</th>
+                            <th class="w-16">TAXEO LLEG</th>
+                            <th class="w-16">PUERTA LLEG</th>
+                            <th class="w-20">T. VUELO</th>
+                            <th class="w-16">DEMORA</th>
+                            <th class="w-24">CÓD. DEMORA</th>
+                            <th class="w-48">EXPLICACIÓN DEMORA</th>
+                            <th class="w-24">UNIDAD FUEL</th>
+                            <th class="w-24">FUEL CARGADO</th>
+                            <th class="w-20">REMANENTE</th>
+                            <th class="w-20">CONSUMO</th>
+                            <th class="w-16">PAX AD</th>
+                            <th class="w-16">PAX CH/INF</th>
+                            <th class="w-20">TOTAL PAX</th>
+                            <th class="w-12 no-print">ACCION</th>
+                        </tr>
+                    </thead>
+                    <tbody id="masterTableBody">
+                        <!-- Dynamic Input Rows -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 2: EST INAC (AUTOMATIC MIRROR 1 - OACI) -->
+        <div id="tab2" class="space-y-3 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl overflow-x-auto">
+                <div class="flex justify-between items-center mb-3 no-print">
+                    <h2 class="text-sm font-bold text-sky-400 flex items-center gap-2">
+                        <i class="fa-solid fa-copy"></i>
+                        EST INAC - Registro Espejo en Tiempo Real (Aeropuertos OACI)
+                    </h2>
+                    <span class="text-xs text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 rounded">
+                        <i class="fa-solid fa-sync fa-spin mr-1"></i> Sincronizado en Tiempo Real
+                    </span>
+                </div>
+
+                <table class="w-full mirror-table border-collapse min-w-[1400px]">
+                    <thead>
+                        <tr>
+                            <th class="w-10 text-center">N°</th>
+                            <th>EMPRESA</th>
+                            <th>FECHA</th>
+                            <th>TERMINAL</th>
+                            <th>N° VUELO</th>
+                            <th>MATRÍCULA</th>
+                            <th class="text-center">ORIGEN (OACI)</th>
+                            <th class="text-center">DESTINO (OACI)</th>
+                            <th class="text-center">HORA ITINERARIO</th>
+                            <th class="text-center">HORA REAL SALIDA</th>
+                            <th class="text-center">DEMORA (MIN)</th>
+                            <th class="text-center">INDICADOR VUELO</th>
+                            <th>MOTIVO DE LA DEMORA</th>
+                            <th class="text-center">PAX EMBARCADOS</th>
+                            <th>OBSERVACIONES</th>
+                        </tr>
+                    </thead>
+                    <tbody id="inacMirrorTableBody">
+                        <!-- Auto mirrored content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- TAB 3: DATOS REPORTE (INAC STATISTICS - RUTA IATA & FUEL JET-A1) -->
+        <div id="tab3" class="space-y-3 hidden">
+            <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-xl overflow-x-auto">
+                <div class="flex justify-between items-center mb-3 no-print">
+                    <h2 class="text-sm font-bold text-amber-400 flex items-center gap-2">
+                        <i class="fa-solid fa-table-list"></i>
+                        DATOS REPORTE - Estadísticas Oficiales INAC (Ruta IATA & Litros Jet-A1)
+                    </h2>
+                    <span class="text-xs text-amber-300 font-bold bg-amber-500/10 border border-amber-500/30 px-3 py-1 rounded">
+                        Origen/Destino: OACI | Ruta IATA: Autoconvertida (3 letras)
+                    </span>
+                </div>
+
+                <table class="w-full mirror-table border-collapse min-w-[1700px]">
+                    <thead>
+                        <tr>
+                            <th class="w-10 text-center">N°</th>
+                            <th>EMPRESA</th>
+                            <th>FECHA</th>
+                            <th>CLASIFICACIÓN</th>
+                            <th>TIPO SERVICIO</th>
+                            <th>MODELO</th>
+                            <th>MATRÍCULA</th>
+                            <th class="text-center">ASIENTOS</th>
+                            <th class="text-center">TIPO FUEL</th>
+                            <th class="text-right">FUEL INGRESADO</th>
+                            <th class="text-right">FUEL (LITROS JET-A1)</th>
+                            <th>N° VUELO</th>
+                            <th class="text-center bg-amber-950/60 text-amber-300 border-amber-500/50">RUTA (IATA)</th>
+                            <th class="text-center">ORIGEN (OACI)</th>
+                            <th class="text-center">DESTINO (OACI)</th>
+                            <th class="text-center">HORA ITIN</th>
+                            <th class="text-center">HORA REAL</th>
+                            <th class="text-center">DEMORA</th>
+                            <th>INDICADOR</th>
+                            <th>MOTIVO DEMORA</th>
+                            <th class="text-center">PAX TOTAL</th>
+                        </tr>
+                    </thead>
+                    <tbody id="datosMirrorTableBody">
+                        <!-- Auto transformed data content -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Printable Official Signature Block -->
+    <div class="hidden print-header p-8 mt-12 border-t border-slate-300 text-xs">
+        <div class="grid grid-cols-3 gap-8 text-center">
+            <div>
+                <p class="font-bold border-t border-black pt-2">DESPACHADOR DE VUELO DE GUARDIA</p>
+                <p>LICENCIA N°: _______________</p>
+            </div>
+            <div>
+                <p class="font-bold border-t border-black pt-2">SUPERVISOR DE CONTROL DE VUELOS</p>
+                <p>RUTACA AIRLINES</p>
+            </div>
+            <div>
+                <p class="font-bold border-t border-black pt-2">INSPECTOR INAC</p>
+                <p>AVERN DE GUARDIA</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Footer -->
+    <footer class="bg-slate-900 border-t border-slate-800 py-3 px-6 text-center text-xs text-slate-500 no-print">
+        <p>Rutaca Airlines &copy; <span id="currentYear"></span> - Sistema de Seguimiento Operacional OACI/IATA y Estadísticas INAC.</p>
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        // Mapeo Bidireccional OACI <-> IATA
+        const oaciToIataMap = {
+            'SVPR': 'PZO',
+            'SVMI': 'CCS',
+            'SVPM': 'PMV',
+            'SVVA': 'VLN',
+            'SVBC': 'BLA',
+            'SVCR': 'CZE',
+            'SVMC': 'MAR',
+            'SVMG': 'MUN',
+            'SVSO': 'STD',
+            'SVMD': 'MRD',
+            'MDPP': 'POP',
+            'MDSD': 'SDQ',
+            'TNCB': 'CUR',
+            'TNCA': 'AUA',
+            'MPTO': 'PTY'
+        };
+
+        // Helper Function: Convert OACI code to IATA code
+        function getIataCode(oaciCode) {
+            if (!oaciCode) return '---';
+            const cleanCode = oaciCode.trim().toUpperCase();
+            return oaciToIataMap[cleanCode] || cleanCode;
+        }
+
+        // Initial Operational Mock Data using 4-letter OACI Codes for Origin/Destination
+        const initialFlights = [
+            {
+                terminal: "NACIONAL",
+                flightNo: "RUC306",
+                equipment: "YV648T",
+                model: "MD88",
+                origin: "SVPR",
+                destination: "SVMI",
+                etd: "07:00",
+                gateOut: "07:10",
+                taxiOut: "07:18",
+                offTime: "07:25",
+                eta: "08:10",
+                onTime: "08:05",
+                taxiIn: "08:12",
+                gateIn: "08:15",
+                flightDuration: "00:40",
+                delayMins: 15,
+                delayCode: "82 AS",
+                delayReason: "ESPERA DE PASAJEROS EN CONEXIÓN",
+                fuelUnit: "LBS",
+                fuelLoaded: 14500,
+                remnant: 4200,
+                consumption: 10300,
+                paxAd: 120,
+                paxCh: 8
+            },
+            {
+                terminal: "NACIONAL",
+                flightNo: "RUC307",
+                equipment: "YV648T",
+                model: "MD88",
+                origin: "SVMI",
+                destination: "SVPM",
+                etd: "09:30",
+                gateOut: "09:30",
+                taxiOut: "09:36",
+                offTime: "09:42",
+                eta: "10:20",
+                onTime: "10:18",
+                taxiIn: "10:22",
+                gateIn: "10:25",
+                flightDuration: "00:36",
+                delayMins: 0,
+                delayCode: "NIL",
+                delayReason: "VUELO EN HORA SIN NOVEDAD",
+                fuelUnit: "LBS",
+                fuelLoaded: 13800,
+                remnant: 4000,
+                consumption: 9800,
+                paxAd: 130,
+                paxCh: 4
+            },
+            {
+                terminal: "INTERNACIONAL",
+                flightNo: "RUC501",
+                equipment: "YV3359",
+                model: "B737-4",
+                origin: "SVMI",
+                destination: "MDPP",
+                etd: "12:00",
+                gateOut: "12:40",
+                taxiOut: "12:50",
+                offTime: "12:58",
+                eta: "14:15",
+                onTime: "14:28",
+                taxiIn: "14:32",
+                gateIn: "14:35",
+                flightDuration: "01:30",
+                delayMins: 40,
+                delayCode: "71 MNT",
+                delayReason: "REVISIÓN TÉCNICA NO PROGRAMADA",
+                fuelUnit: "KG",
+                fuelLoaded: 10200,
+                remnant: 2800,
+                consumption: 7400,
+                paxAd: 138,
+                paxCh: 3
+            }
+        ];
+
+        let currentFlights = [];
+
+        // App Initialization
+        window.onload = function() {
+            document.getElementById('currentYear').textContent = new Date().getFullYear();
+            
+            // Set Default Date to Today
+            const todayStr = new Date().toISOString().split('T')[0];
+            document.getElementById('globalDate').value = todayStr;
+
+            // Load data for current date or initialize
+            loadFlightsForDate(todayStr);
+        };
+
+        // Load or initialize flights by date
+        function loadFlightsForDate(dateStr) {
+            const storageKey = `rutaca_oaci_flights_${dateStr}`;
+            const savedData = localStorage.getItem(storageKey);
+
+            if (savedData) {
+                try {
+                    currentFlights = JSON.parse(savedData);
+                } catch(e) {
+                    currentFlights = JSON.parse(JSON.stringify(initialFlights));
+                }
+            } else {
+                currentFlights = JSON.parse(JSON.stringify(initialFlights));
+            }
+
+            renderAllTables();
+        }
+
+        // Save Current Day Flights to LocalStorage
+        function saveCurrentDayToStorage() {
+            const dateStr = document.getElementById('globalDate').value;
+            if (!dateStr) return;
+
+            const storageKey = `rutaca_oaci_flights_${dateStr}`;
+            localStorage.setItem(storageKey, JSON.stringify(currentFlights));
+            alert(`¡Datos OACI del día ${dateStr} guardados exitosamente en el historial!`);
+        }
+
+        // Date Picker Change Handler
+        function handleDateChange() {
+            const dateStr = document.getElementById('globalDate').value;
+            loadFlightsForDate(dateStr);
+        }
+
+        // Calculate time differences and delays
+        function computeTimeMetrics(etd, gateOut, offTime, onTime) {
+            let delayMinutes = 0;
+            let flightDuration = "00:00";
+
+            if (etd && gateOut) {
+                const [eH, eM] = etd.split(':').map(Number);
+                const [gH, gM] = gateOut.split(':').map(Number);
+                if (!isNaN(eH) && !isNaN(eM) && !isNaN(gH) && !isNaN(gM)) {
+                    const etdTotal = eH * 60 + eM;
+                    const gateTotal = gH * 60 + gM;
+                    const diff = gateTotal - etdTotal;
+                    delayMinutes = diff > 0 ? diff : 0;
+                }
+            }
+
+            if (offTime && onTime) {
+                const [oH, oM] = offTime.split(':').map(Number);
+                const [aH, aM] = onTime.split(':').map(Number);
+                if (!isNaN(oH) && !isNaN(oM) && !isNaN(aH) && !isNaN(aM)) {
+                    let totalMin = (aH * 60 + aM) - (oH * 60 + oM);
+                    if (totalMin < 0) totalMin += 24 * 60; // Cross midnight
+                    const durH = String(Math.floor(totalMin / 60)).padStart(2, '0');
+                    const durM = String(totalMin % 60).padStart(2, '0');
+                    flightDuration = `${durH}:${durM}`;
+                }
+            }
+
+            return { delayMinutes, flightDuration };
+        }
+
+        // Render All 3 Interconnected Tables & Re-calculate KPIs
+        function renderAllTables() {
+            renderMasterTable();
+            renderInacMirrorTable();
+            renderDatosMirrorTable();
+            updateDashboardKPIs();
+        }
+
+        // 1. Render Master Tracking Table (Tab 1) - OACI Format
+        function renderMasterTable() {
+            const tbody = document.getElementById('masterTableBody');
+            tbody.innerHTML = '';
+
+            currentFlights.forEach((f, idx) => {
+                const metrics = computeTimeMetrics(f.etd, f.gateOut, f.offTime, f.onTime);
+                f.delayMins = metrics.delayMinutes;
+                f.flightDuration = metrics.flightDuration;
+
+                const totalPax = (parseInt(f.paxAd) || 0) + (parseInt(f.paxCh) || 0);
+
+                const tr = document.createElement('tr');
+                tr.className = 'hover:bg-slate-800/50 transition-colors';
+                tr.innerHTML = `
+                    <td class="text-center font-bold text-slate-400">${idx + 1}</td>
+                    <td>
+                        <select class="excel-select font-semibold" onchange="updateFlightField(${idx}, 'terminal', this.value)">
+                            <option value="NACIONAL" ${f.terminal === 'NACIONAL' ? 'selected' : ''}>NACIONAL</option>
+                            <option value="INTERNACIONAL" ${f.terminal === 'INTERNACIONAL' ? 'selected' : ''}>INTERNACIONAL</option>
+                        </select>
+                    </td>
+                    <td><input type="text" class="excel-input uppercase font-bold text-sky-400" value="${f.flightNo || ''}" onchange="updateFlightField(${idx}, 'flightNo', this.value)"></td>
+                    <td><input type="text" class="excel-input uppercase font-bold text-amber-300" value="${f.equipment || ''}" onchange="updateFlightField(${idx}, 'equipment', this.value)"></td>
+                    <td>
+                        <select class="excel-select" onchange="updateFlightField(${idx}, 'model', this.value)">
+                            <option value="MD88" ${f.model === 'MD88' ? 'selected' : ''}>MD88</option>
+                            <option value="MD83" ${f.model === 'MD83' ? 'selected' : ''}>MD83</option>
+                            <option value="B737-4" ${f.model === 'B737-4' ? 'selected' : ''}>B737-400</option>
+                            <option value="B737-200" ${f.model === 'B737-200' ? 'selected' : ''}>B737-200</option>
+                        </select>
+                    </td>
+                    <td><input type="text" list="oaciAirports" maxlength="4" class="excel-input uppercase text-center font-bold text-sky-300" value="${f.origin || ''}" onchange="updateFlightField(${idx}, 'origin', this.value.toUpperCase())" placeholder="SVMI"></td>
+                    <td><input type="text" list="oaciAirports" maxlength="4" class="excel-input uppercase text-center font-bold text-sky-300" value="${f.destination || ''}" onchange="updateFlightField(${idx}, 'destination', this.value.toUpperCase())" placeholder="SVPR"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.etd || ''}" onchange="updateFlightField(${idx}, 'etd', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.gateOut || ''}" onchange="updateFlightField(${idx}, 'gateOut', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.taxiOut || ''}" onchange="updateFlightField(${idx}, 'taxiOut', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.offTime || ''}" onchange="updateFlightField(${idx}, 'offTime', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.eta || ''}" onchange="updateFlightField(${idx}, 'eta', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.onTime || ''}" onchange="updateFlightField(${idx}, 'onTime', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.taxiIn || ''}" onchange="updateFlightField(${idx}, 'taxiIn', this.value)"></td>
+                    <td><input type="time" class="excel-input text-center" value="${f.gateIn || ''}" onchange="updateFlightField(${idx}, 'gateIn', this.value)"></td>
+                    <td class="text-center font-mono text-sky-300 font-bold">${f.flightDuration}</td>
+                    <td class="text-center font-bold ${f.delayMins > 15 ? 'text-amber-400 bg-amber-500/10' : 'text-emerald-400'}">${f.delayMins}</td>
+                    <td><input type="text" class="excel-input uppercase text-center" value="${f.delayCode || ''}" onchange="updateFlightField(${idx}, 'delayCode', this.value)"></td>
+                    <td><input type="text" class="excel-input" value="${f.delayReason || ''}" onchange="updateFlightField(${idx}, 'delayReason', this.value)"></td>
+                    <td>
+                        <select class="excel-select font-bold text-amber-300" onchange="updateFlightField(${idx}, 'fuelUnit', this.value)">
+                            <option value="LBS" ${f.fuelUnit === 'LBS' ? 'selected' : ''}>LBS (Libras)</option>
+                            <option value="KG" ${f.fuelUnit === 'KG' ? 'selected' : ''}>KG (Kilos)</option>
+                        </select>
+                    </td>
+                    <td><input type="number" class="excel-input text-right" value="${f.fuelLoaded || 0}" onchange="updateFlightField(${idx}, 'fuelLoaded', this.value)"></td>
+                    <td><input type="number" class="excel-input text-right" value="${f.remnant || 0}" onchange="updateFlightField(${idx}, 'remnant', this.value)"></td>
+                    <td><input type="number" class="excel-input text-right" value="${f.consumption || 0}" onchange="updateFlightField(${idx}, 'consumption', this.value)"></td>
+                    <td><input type="number" class="excel-input text-center" value="${f.paxAd || 0}" onchange="updateFlightField(${idx}, 'paxAd', this.value)"></td>
+                    <td><input type="number" class="excel-input text-center" value="${f.paxCh || 0}" onchange="updateFlightField(${idx}, 'paxCh', this.value)"></td>
+                    <td class="text-center font-bold text-emerald-400">${totalPax}</td>
+                    <td class="text-center no-print">
+                        <button onclick="deleteFlightRow(${idx})" class="text-rose-400 hover:text-rose-300 p-1 transition-colors">
+                            <i class="fa-solid fa-trash-can"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 2. Render Mirror 1: EST INAC Table (OACI)
+        function renderInacMirrorTable() {
+            const tbody = document.getElementById('inacMirrorTableBody');
+            const dateStr = document.getElementById('globalDate').value;
+            tbody.innerHTML = '';
+
+            currentFlights.forEach((f, idx) => {
+                const totalPax = (parseInt(f.paxAd) || 0) + (parseInt(f.paxCh) || 0);
+                const isDelayed = f.delayMins > 15;
+                const status = isDelayed ? 'DEMORADO' : 'EJECUTADO';
+                const statusBadge = isDelayed ? 'bg-amber-500/20 text-amber-300 border-amber-500/40' : 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40';
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-center font-bold">${idx + 1}</td>
+                    <td class="font-bold text-sky-400">RUC</td>
+                    <td class="text-center font-mono">${dateStr}</td>
+                    <td>${f.terminal}</td>
+                    <td class="font-bold text-white">${f.flightNo || '-'}</td>
+                    <td class="font-bold text-amber-300">${f.equipment || '-'}</td>
+                    <td class="text-center font-bold text-sky-300">${f.origin || '----'}</td>
+                    <td class="text-center font-bold text-sky-300">${f.destination || '----'}</td>
+                    <td class="text-center">${f.etd || '-'}</td>
+                    <td class="text-center">${f.gateOut || '-'}</td>
+                    <td class="text-center font-bold ${isDelayed ? 'text-amber-400' : 'text-slate-300'}">${f.delayMins}</td>
+                    <td class="text-center">
+                        <span class="px-2 py-0.5 rounded text-[10px] font-bold border ${statusBadge}">
+                            ${status}
+                        </span>
+                    </td>
+                    <td class="font-mono text-xs">${f.delayCode ? (f.delayCode + ' - ' + f.delayReason) : 'NIL'}</td>
+                    <td class="text-center font-bold text-emerald-400">${totalPax}</td>
+                    <td class="text-xs text-slate-300">${f.delayReason || 'SIN NOVEDAD'}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // 3. Render Mirror 2: DATOS REPORTE (Origen/Destino OACI & RUTA IATA)
+        function renderDatosMirrorTable() {
+            const tbody = document.getElementById('datosMirrorTableBody');
+            const dateStr = document.getElementById('globalDate').value;
+            tbody.innerHTML = '';
+
+            currentFlights.forEach((f, idx) => {
+                const totalPax = (parseInt(f.paxAd) || 0) + (parseInt(f.paxCh) || 0);
+                const classification = f.terminal === 'NACIONAL' ? '1 (NACIONAL)' : '2 (INTERNACIONAL)';
+                
+                // Fuel Conversion Logic
+                const rawFuel = parseFloat(f.fuelLoaded) || 0;
+                let fuelInLiters = 0;
+                let conversionFormula = '';
+
+                if (f.fuelUnit === 'KG') {
+                    fuelInLiters = Math.round(rawFuel / 0.80);
+                    conversionFormula = `${rawFuel.toLocaleString()} KG / 0.80`;
+                } else { // Default LBS
+                    fuelInLiters = Math.round(rawFuel / 1.76);
+                    conversionFormula = `${rawFuel.toLocaleString()} LBS / 1.76`;
+                }
+
+                // Seats config by aircraft model
+                let seats = 150;
+                if ((f.model || '').includes('MD83')) seats = 155;
+                if ((f.model || '').includes('B737-4')) seats = 144;
+                if ((f.model || '').includes('B737-2')) seats = 118;
+
+                const isDelayed = f.delayMins > 15;
+                
+                // Conversión de OACI a RUTA IATA (ejemplo: SVPR-SVMI -> PZO-CCS)
+                const origIata = getIataCode(f.origin);
+                const destIata = getIataCode(f.destination);
+                const iataRoute = `${origIata}-${destIata}`;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td class="text-center font-bold">${idx + 1}</td>
+                    <td class="font-bold text-sky-400">RUC</td>
+                    <td class="text-center font-mono">${dateStr}</td>
+                    <td>${classification}</td>
+                    <td>1 (REGULAR)</td>
+                    <td class="font-bold">${f.model || '-'}</td>
+                    <td class="font-bold text-amber-300">${f.equipment || '-'}</td>
+                    <td class="text-center">${seats}</td>
+                    <td class="text-center font-bold text-sky-300">JET-A1</td>
+                    <td class="text-right font-mono text-xs text-slate-300">${conversionFormula}</td>
+                    <td class="text-right font-mono font-bold text-amber-300">${fuelInLiters.toLocaleString()} Lts</td>
+                    <td class="font-bold text-white">${f.flightNo || '-'}</td>
+                    <td class="font-bold text-center text-amber-300 bg-amber-950/30 font-mono">${iataRoute}</td>
+                    <td class="text-center font-bold text-slate-300">${f.origin || '----'}</td>
+                    <td class="text-center font-bold text-slate-300">${f.destination || '----'}</td>
+                    <td class="text-center">${f.etd || '-'}</td>
+                    <td class="text-center">${f.gateOut || '-'}</td>
+                    <td class="text-center font-bold ${isDelayed ? 'text-amber-400' : 'text-slate-300'}">${f.delayMins}</td>
+                    <td>${isDelayed ? 'DEMORADO' : 'EJECUTADO'}</td>
+                    <td class="font-mono text-xs">${f.delayCode || 'NIL'}</td>
+                    <td class="text-center font-bold text-emerald-400">${totalPax}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Field Update Listener
+        function updateFlightField(index, field, value) {
+            currentFlights[index][field] = value;
+            renderAllTables();
+            const dateStr = document.getElementById('globalDate').value;
+            localStorage.setItem(`rutaca_oaci_flights_${dateStr}`, JSON.stringify(currentFlights));
+        }
+
+        // Add Flight Row
+        function addNewFlightRow() {
+            currentFlights.push({
+                terminal: "NACIONAL",
+                flightNo: "",
+                equipment: "",
+                model: "MD88",
+                origin: "SVMI",
+                destination: "SVPR",
+                etd: "",
+                gateOut: "",
+                taxiOut: "",
+                offTime: "",
+                eta: "",
+                onTime: "",
+                taxiIn: "",
+                gateIn: "",
+                flightDuration: "00:00",
+                delayMins: 0,
+                delayCode: "NIL",
+                delayReason: "",
+                fuelUnit: "LBS",
+                fuelLoaded: 0,
+                remnant: 0,
+                consumption: 0,
+                paxAd: 0,
+                paxCh: 0
+            });
+            renderAllTables();
+        }
+
+        // Delete Flight Row
+        function deleteFlightRow(index) {
+            if (confirm("¿Desea eliminar esta fila de vuelo?")) {
+                currentFlights.splice(index, 1);
+                renderAllTables();
+                const dateStr = document.getElementById('globalDate').value;
+                localStorage.setItem(`rutaca_oaci_flights_${dateStr}`, JSON.stringify(currentFlights));
+            }
+        }
+
+        // Dashboard KPIs Calculation
+        function updateDashboardKPIs() {
+            const total = currentFlights.length;
+            let delayed = 0;
+            let imputable = 0;
+            let nonImputable = 0;
+
+            currentFlights.forEach(f => {
+                const delayMins = f.delayMins || 0;
+                if (delayMins > 15) {
+                    delayed++;
+                    const code = (f.delayCode || '').toUpperCase();
+                    if (code.includes('MNT') || code.includes('AS') || code.includes('RUC') || code.includes('EQ')) {
+                        imputable++;
+                    } else {
+                        nonImputable++;
+                    }
+                }
+            });
+
+            const onTime = total - delayed;
+            const punctualityTotal = total > 0 ? Math.round((onTime / total) * 100) : 100;
+            const punctualityReal = total > 0 ? Math.round(((total - imputable) / total) * 100) : 100;
+
+            document.getElementById('kpiOperated').textContent = total;
+            document.getElementById('kpiOnTime').textContent = onTime;
+            document.getElementById('kpiDelayed').textContent = delayed;
+            document.getElementById('kpiImputable').textContent = imputable;
+            document.getElementById('kpiNonImputable').textContent = nonImputable;
+            document.getElementById('kpiPunctualityTotal').textContent = `${punctualityTotal}%`;
+            document.getElementById('kpiPunctualityReal').textContent = `${punctualityReal}%`;
+        }
+
+        // Tab Navigation
+        function switchActiveTab(tabId) {
+            ['tab1', 'tab2', 'tab3'].forEach((id, idx) => {
+                const content = document.getElementById(id);
+                const btn = document.getElementById(`tabBtn${idx + 1}`);
+
+                if (id === tabId) {
+                    content.classList.remove('hidden');
+                    btn.classList.remove('bg-slate-800/60', 'text-slate-400', 'border-slate-800');
+                    btn.classList.add('bg-amber-600', 'text-slate-950', 'border-amber-500');
+                } else {
+                    content.classList.add('hidden');
+                    btn.classList.add('bg-slate-800/60', 'text-slate-400', 'border-slate-800');
+                    btn.classList.remove('bg-amber-600', 'text-slate-950', 'border-amber-500');
+                }
+            });
+        }
+
+        // Print Report
+        function triggerPrintProcess() {
+            const dateStr = document.getElementById('globalDate').value;
+            document.getElementById('printReportDate').textContent = `FECHA DE REPORTE: ${dateStr}`;
+            window.print();
+        }
+
+        // Export Multi-Tab Excel Workbook (.xlsx) with OACI Airports & Ruta IATA
+        function exportToExcelWorkbook() {
+            const dateStr = document.getElementById('globalDate').value || 'REPORTE';
+            const wb = XLSX.utils.book_new();
+
+            // 1. Sheet: SEGUIMIENTO DE VUELO
+            const masterData = currentFlights.map((f, i) => ({
+                "N°": i + 1,
+                "TERMINAL": f.terminal,
+                "N° VUELO": f.flightNo,
+                "MATRICULA": f.equipment,
+                "MODELO": f.model,
+                "ORIGEN (OACI)": f.origin,
+                "DESTINO (OACI)": f.destination,
+                "ETD": f.etd,
+                "PUERTA SAL": f.gateOut,
+                "TAXEO SAL": f.taxiOut,
+                "OFF": f.offTime,
+                "ETA": f.eta,
+                "ON": f.onTime,
+                "TAXEO LLEG": f.taxiIn,
+                "PUERTA LLEG": f.gateIn,
+                "TIEMPO VUELO": f.flightDuration,
+                "DEMORA MIN": f.delayMins,
+                "COD DEMORA": f.delayCode,
+                "EXPLICACION DEMORA": f.delayReason,
+                "UNIDAD FUEL": f.fuelUnit,
+                "FUEL CARGADO": f.fuelLoaded,
+                "REMANENTE": f.remnant,
+                "CONSUMO": f.consumption,
+                "PAX AD": f.paxAd,
+                "PAX CH": f.paxCh,
+                "TOTAL PAX": (parseInt(f.paxAd)||0) + (parseInt(f.paxCh)||0)
+            }));
+            const ws1 = XLSX.utils.json_to_sheet(masterData);
+            XLSX.utils.book_append_sheet(wb, ws1, "SEGUIMIENTO DE VUELO");
+
+            // 2. Sheet: EST INAC
+            const inacData = currentFlights.map((f, i) => ({
+                "N°": i + 1,
+                "EMPRESA": "RUC",
+                "FECHA": dateStr,
+                "TERMINAL": f.terminal,
+                "N° VUELO": f.flightNo,
+                "MATRICULA": f.equipment,
+                "ORIGEN (OACI)": f.origin,
+                "DESTINO (OACI)": f.destination,
+                "HORA ITINERARIO": f.etd,
+                "HORA REAL": f.gateOut,
+                "MIN DEMORA": f.delayMins,
+                "INDICADOR": f.delayMins > 15 ? "DEMORADO" : "EJECUTADO",
+                "MOTIVO DEMORA": f.delayCode ? (f.delayCode + " - " + f.delayReason) : "NIL",
+                "PAX EMBARCADOS": (parseInt(f.paxAd)||0) + (parseInt(f.paxCh)||0),
+                "OBSERVACIONES": f.delayReason || "SIN NOVEDAD"
+            }));
+            const ws2 = XLSX.utils.json_to_sheet(inacData);
+            XLSX.utils.book_append_sheet(wb, ws2, "EST INAC");
+
+            // 3. Sheet: DATOS REPORTE
+            const datosData = currentFlights.map((f, i) => {
+                const rawFuel = parseFloat(f.fuelLoaded) || 0;
+                const liters = f.fuelUnit === 'KG' ? Math.round(rawFuel / 0.80) : Math.round(rawFuel / 1.76);
+                const iataRoute = `${getIataCode(f.origin)}-${getIataCode(f.destination)}`;
+                return {
+                    "N°": i + 1,
+                    "EMPRESA": "RUC",
+                    "FECHA": dateStr,
+                    "CLASIFICACION": f.terminal === 'NACIONAL' ? '1' : '2',
+                    "TIPO SERVICIO": '1',
+                    "MODELO": f.model,
+                    "MATRICULA": f.equipment,
+                    "ASIENTOS": (f.model || '').includes('B737') ? 144 : 150,
+                    "TIPO FUEL": "JET-A1",
+                    "FUEL INGRESADO": `${rawFuel} ${f.fuelUnit}`,
+                    "FUEL (LITROS JET-A1)": liters,
+                    "N° VUELO": f.flightNo,
+                    "RUTA (IATA)": iataRoute,
+                    "ORIGEN (OACI)": f.origin,
+                    "DESTINO (OACI)": f.destination,
+                    "HORA ITIN": f.etd,
+                    "HORA REAL": f.gateOut,
+                    "DEMORA MIN": f.delayMins,
+                    "INDICADOR": f.delayMins > 15 ? "DEMORADO" : "EJECUTADO",
+                    "MOTIVO DEMORA": f.delayCode || "NIL",
+                    "TOTAL PAX": (parseInt(f.paxAd)||0) + (parseInt(f.paxCh)||0)
+                };
+            });
+            const ws3 = XLSX.utils.json_to_sheet(datosData);
+            XLSX.utils.book_append_sheet(wb, ws3, "DATOS REPORTE");
+
+            // Write File
+            XLSX.writeFile(wb, `SEGUIMIENTO_VUELOS_OACI_RUTACA_${dateStr}.xlsx`);
+        }
+    </script>
+</body>
+</html>
+```
